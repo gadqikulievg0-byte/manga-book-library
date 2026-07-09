@@ -9,6 +9,7 @@ import '../controllers/import_controller.dart';
 import '../controllers/background_controller.dart';
 import '../data/models/book.dart';
 import '../widgets/book_card.dart';
+import '../controllers/settings_controller.dart';
 import '../widgets/search_field.dart';
 
 enum GridSize { small, medium, large }
@@ -23,6 +24,13 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen> {
   GridSize _selectedGridSize = GridSize.medium;
   bool _showGridSettings = false;
+  late final LibraryController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = Get.find<LibraryController>();
+  }
 
   void _importLibrary() async {
     final importController = Get.find<ImportController>();
@@ -61,7 +69,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.find<LibraryController>();
+    final controller = _controller;
     final screenWidth = MediaQuery.of(context).size.width;
 
     int crossAxisCount;
@@ -264,6 +272,25 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ),
                 ),
               _buildCategoryFilters(),
+              // В разделе _buildCategoryFilters() или в настройках сетки добавьте:
+
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () =>
+                          Get.find<SettingsController>().changeLibraryPath(),
+                      icon: const Icon(Icons.folder, size: 18),
+                      label: const Text('Изменить папку библиотеки'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green.shade800,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               Expanded(
                 child: Obx(() {
                   if (controller.isLoading.value) {

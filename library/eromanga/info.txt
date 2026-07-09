@@ -1,0 +1,5 @@
+TITLE: eromanga
+STATUS: new
+
+VOLUMES:
+  1: 第01巻.pdf|new

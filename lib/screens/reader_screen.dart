@@ -26,6 +26,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   late final int _initialPage;
   bool _isVertical = true;
   int _totalPages = 1;
+  bool _isBookmarked = false;
 
   final Map<int, String> _bookmarks = {};
 
@@ -45,6 +46,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _controller.initReader(bookId: _bookId, volume: _volume);
     _initialPage = (_volume.lastReadPage + 1).clamp(1, 999999);
     _isVertical = _controller.readingMode.value == ReadingMode.vertical;
+    _isBookmarked = _volume.isBookmarked;
 
     _updateBookStatus();
     _loadBookmarks();
@@ -73,8 +75,27 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Future<void> _saveProgress() async {
     try {
       final page = _pdfController.pageNumber;
+      final totalPages = _pdfController.pageCount ?? 1;
       if (page != null && page > 0) {
-        await _controller.saveProgress(page - 1);
+        // Сохраняем прогресс
+        await _controller.saveProgress(page - 1, _isBookmarked);
+
+        // Проверяем, дочитан ли том до конца
+        // Если страница >= totalPages - 1, считаем том прочитанным
+        final isFinished =
+            page >= totalPages - 1; // -1 потому что последняя страница
+        if (isFinished) {
+          await _controller.markVolumeAsRead();
+          Get.snackbar(
+            '🎉 Том прочитан!',
+            'Статус обновлен на "Прочитан"',
+            snackPosition: SnackPosition.BOTTOM,
+            duration: const Duration(seconds: 2),
+          );
+        } else if (page > 1) {
+          // Если читаем не первую страницу, статус "Читается"
+          // Это уже обновляется через saveReadingProgress
+        }
       }
     } catch (e) {
       // Игнорируем ошибки при сохранении

@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as path;
 import '../data/models/book.dart';
 import '../data/models/volume.dart';
+import 'settings_controller.dart';
 import '../data/repositories/book_repository.dart';
 import 'category_controller.dart';
-import 'import_controller.dart'; // Добавьте эту строку в начале файла
+import '../core/pdf_cover_extractor.dart';
 
 class BookController extends GetxController {
   final BookRepository _repository = Get.find<BookRepository>();
@@ -24,10 +26,13 @@ class BookController extends GetxController {
   final selectedStatus = BookStatus.newBook.obs;
   final isLoading = false.obs;
 
-  // Флаг для предотвращения повторного сохранения
   bool _isSaving = false;
-
   List<Volume>? _originalVolumes;
+
+  String get _libraryPath {
+    final settings = Get.find<SettingsController>();
+    return settings.libraryPath.value;
+  }
 
   void loadBook(String? bookId) {
     if (bookId != null) {
@@ -92,59 +97,6 @@ class BookController extends GetxController {
     selectedStatus.value = status;
   }
 
-  Future<void> addVolume() async {
-    try {
-      FilePickerResult? result;
-
-      if (kIsWeb) {
-        result = await FilePicker.platform.pickFiles(
-          type: FileType.custom,
-          allowedExtensions: ['pdf'],
-          withData: true,
-        );
-      } else {
-        result = await FilePicker.platform.pickFiles(
-          type: FileType.custom,
-          allowedExtensions: ['pdf'],
-        );
-      }
-
-      if (result != null) {
-        final file = result.files.single;
-        String filePath;
-        String fileName;
-
-        if (kIsWeb) {
-          filePath = file.name;
-          fileName = file.name;
-        } else {
-          filePath = file.path!;
-          fileName = file.name;
-        }
-
-        final volume = Volume(
-          title: fileName,
-          filePath: filePath,
-        );
-        volumes.add(volume);
-        Get.snackbar('Успех', 'Том добавлен: $fileName');
-      }
-    } catch (e) {
-      Get.snackbar('Ошибка', 'Не удалось добавить том: $e');
-    }
-  }
-
-  void removeVolume(int index) {
-    volumes.removeAt(index);
-  }
-
-  void updateVolumeTitle(int index, String newTitle) {
-    if (index < volumes.length) {
-      volumes[index] = volumes[index].copyWith(title: newTitle);
-      volumes.refresh();
-    }
-  }
-
   Future<void> pickCover() async {
     try {
       final picker = ImagePicker();
@@ -169,51 +121,212 @@ class BookController extends GetxController {
     }
   }
 
-  Future<bool> saveBook() async {
-    // Защита от повторного сохранения
-    if (_isSaving) {
-      return false;
+  void removeVolume(int index) {
+    volumes.removeAt(index);
+  }
+
+  void updateVolumeTitle(int index, String newTitle) {
+    if (index < volumes.length) {
+      volumes[index] = volumes[index].copyWith(title: newTitle);
+      volumes.refresh();
+    }
+  }
+
+  Future<String> _createBookFolder(String bookTitle) async {
+    final folderName = _sanitizeFolderName(bookTitle);
+    final bookFolderPath = path.join(_libraryPath, folderName);
+
+    final folder = Directory(bookFolderPath);
+    if (!await folder.exists()) {
+      await folder.create(recursive: true);
     }
 
-    // Валидация: проверяем название
+    final coversFolder = Directory(path.join(bookFolderPath, 'covers'));
+    if (!await coversFolder.exists()) {
+      await coversFolder.create();
+    }
+
+    return bookFolderPath;
+  }
+
+  String _sanitizeFolderName(String name) {
+    final illegalChars = RegExp(r'[<>:"/\\|?*]');
+    return name.replaceAll(illegalChars, '').trim();
+  }
+
+  Future<String> _copyFileToBookFolder(
+      String sourcePath, String bookFolderPath) async {
+    final fileName = path.basename(sourcePath);
+    final destPath = path.join(bookFolderPath, fileName);
+
+    String finalDestPath = destPath;
+    int counter = 1;
+    while (await File(finalDestPath).exists()) {
+      final ext = path.extension(fileName);
+      final nameWithoutExt = path.basenameWithoutExtension(fileName);
+      finalDestPath =
+          path.join(bookFolderPath, '${nameWithoutExt}_$counter$ext');
+      counter++;
+    }
+
+    await File(sourcePath).copy(finalDestPath);
+    return finalDestPath;
+  }
+
+  Future<void> _createInfoFile(String bookFolderPath, Book book) async {
+    final infoFile = File(path.join(bookFolderPath, 'info.txt'));
+
+    String content = 'TITLE: ${book.title}\n';
+    if (book.description != null) {
+      content += 'DESCRIPTION: ${book.description}\n';
+    }
+    if (book.categories.isNotEmpty) {
+      content += 'CATEGORIES: ${book.categories.join(', ')}\n';
+    }
+
+    String status = 'new';
+    switch (book.status) {
+      case BookStatus.reading:
+        status = 'reading';
+        break;
+      case BookStatus.read:
+        status = 'read';
+        break;
+      default:
+        status = 'new';
+    }
+    content += 'STATUS: $status\n';
+
+    content += '\nVOLUMES:\n';
+    for (var i = 0; i < book.volumes.length; i++) {
+      final volume = book.volumes[i];
+      final volumeStatus = volume.lastReadPage > 0 ? 'reading' : 'new';
+      content += '  ${i + 1}: ${volume.title}|$volumeStatus\n';
+    }
+
+    await infoFile.writeAsString(content);
+  }
+
+  Future<void> addVolume() async {
+    try {
+      FilePickerResult? result;
+
+      if (kIsWeb) {
+        result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['pdf'],
+          withData: true,
+        );
+      } else {
+        result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['pdf'],
+        );
+      }
+
+      if (result != null) {
+        final file = result.files.single;
+        String fileName;
+        String filePath;
+
+        if (kIsWeb) {
+          fileName = file.name;
+          filePath = file.name;
+        } else {
+          fileName = file.name;
+          filePath = file.path!;
+        }
+
+        final volume = Volume(
+          title: fileName,
+          filePath: filePath,
+          lastReadPage: 0,
+        );
+        volumes.add(volume);
+        Get.snackbar('Успех', 'Том добавлен: $fileName');
+      }
+    } catch (e) {
+      Get.snackbar('Ошибка', 'Не удалось добавить том: $e');
+    }
+  }
+
+  Future<bool> saveBook() async {
+    if (_isSaving) return false;
+
     if (title.value.trim().isEmpty) {
       Get.snackbar('Ошибка', 'Введите название книги');
       return false;
     }
 
-    // Валидация: проверяем, есть ли хотя бы один том
     if (volumes.isEmpty) {
       Get.snackbar('Ошибка', 'Добавьте хотя бы один PDF-файл');
       return false;
-    }
-
-    // Проверка на дубликаты (если редактирование, пропускаем)
-    if (book.value == null) {
-      final existingBooks = _repository.getAllBooks();
-      final isDuplicate = existingBooks.any(
-          (b) => b.title.toLowerCase() == title.value.trim().toLowerCase());
-      if (isDuplicate) {
-        Get.snackbar(
-          'Ошибка',
-          'Книга с таким названием уже существует',
-          duration: const Duration(seconds: 2),
-        );
-        return false;
-      }
     }
 
     _isSaving = true;
     isLoading.value = true;
 
     try {
-      Book savedBook;
+      String? bookFolderPath;
+      if (!kIsWeb) {
+        bookFolderPath = await _createBookFolder(title.value.trim());
+      }
 
+      List<Volume> processedVolumes = [];
+      for (var volume in volumes) {
+        String finalPath;
+        String? volumeCoverPath;
+
+        if (!kIsWeb && bookFolderPath != null) {
+          finalPath =
+              await _copyFileToBookFolder(volume.filePath, bookFolderPath);
+
+          // Генерируем обложку тома из первой страницы PDF
+          final coversFolder = Directory(path.join(bookFolderPath, 'covers'));
+          if (!await coversFolder.exists()) {
+            await coversFolder.create();
+          }
+
+          volumeCoverPath = await PdfCoverExtractor.extractCoverFromPdf(
+            pdfPath: finalPath,
+            outputDir: coversFolder.path,
+            volumeId: volume.id,
+          );
+
+          // Если не удалось сгенерировать обложку, используем старую если была
+          if (volumeCoverPath == null && volume.coverPath != null) {
+            volumeCoverPath = volume.coverPath;
+          }
+        } else {
+          finalPath = volume.filePath;
+        }
+
+        processedVolumes.add(Volume(
+          id: volume.id,
+          title: volume.title,
+          filePath: finalPath,
+          lastReadPage: volume.lastReadPage,
+          coverPath: volumeCoverPath,
+        ));
+      }
+
+      String? finalCoverPath;
+      if (!kIsWeb && coverPath.value.isNotEmpty && bookFolderPath != null) {
+        final coverFileName = 'cover${path.extension(coverPath.value)}';
+        final destCoverPath = path.join(bookFolderPath, coverFileName);
+        await File(coverPath.value).copy(destCoverPath);
+        finalCoverPath = destCoverPath;
+      } else {
+        finalCoverPath = coverPath.value;
+      }
+
+      Book savedBook;
       if (book.value != null) {
         savedBook = book.value!.copyWith(
           title: title.value.trim(),
           description: description.value.isNotEmpty ? description.value : null,
-          coverPath: coverPath.value.isNotEmpty ? coverPath.value : null,
-          volumes: volumes.toList(),
+          coverPath: finalCoverPath,
+          volumes: processedVolumes,
           categories: selectedCategories.toList(),
           status: selectedStatus.value,
         );
@@ -222,30 +335,19 @@ class BookController extends GetxController {
         savedBook = Book(
           title: title.value.trim(),
           description: description.value.isNotEmpty ? description.value : null,
-          coverPath: coverPath.value.isNotEmpty ? coverPath.value : null,
-          volumes: volumes.toList(),
+          coverPath: finalCoverPath,
+          volumes: processedVolumes,
           categories: selectedCategories.toList(),
           status: selectedStatus.value,
         );
         await _repository.saveBook(savedBook);
       }
 
-      _categoryController.loadCategories();
-
-      // Создаем info.txt для новой книги
-      if (!kIsWeb && volumes.isNotEmpty && savedBook.volumes.isNotEmpty) {
-        try {
-          final firstVolumePath = savedBook.volumes.first.filePath;
-          final file = File(firstVolumePath);
-          if (await file.exists()) {
-            final folderPath = file.parent.path;
-            final importController = Get.find<ImportController>();
-            await importController.createInfoFile(folderPath, savedBook);
-          }
-        } catch (e) {
-          // Игнорируем ошибки создания info.txt
-        }
+      if (!kIsWeb && bookFolderPath != null) {
+        await _createInfoFile(bookFolderPath, savedBook);
       }
+
+      _categoryController.loadCategories();
 
       Get.snackbar('Успех', 'Книга сохранена');
       return true;
