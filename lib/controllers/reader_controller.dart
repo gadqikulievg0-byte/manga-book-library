@@ -26,15 +26,14 @@ class ReaderController extends GetxController {
     }
   }
 
-  Future<void> saveProgress(int page) async {
+  Future<void> saveProgress(int page, bool isBookmarked) async {
     if (_bookId != null && _volume != null) {
       try {
-        // Передаем 4 параметра: bookId, volumeId, page, isBookmarked
         await _repository.saveReadingProgress(
           _bookId!,
           _volume!.id,
           page,
-          _volume!.isBookmarked, // Передаем текущее состояние закладки
+          isBookmarked,
         );
       } catch (e) {
         print('Error saving progress: $e');
@@ -42,18 +41,29 @@ class ReaderController extends GetxController {
     }
   }
 
+  Future<void> markVolumeAsRead() async {
+    if (_bookId != null && _volume != null) {
+      try {
+        await _repository.markVolumeAsRead(_bookId!, _volume!.id);
+        // Обновляем локальный volume
+        _volume!.lastReadPage = -1;
+        currentPage.value = -1;
+      } catch (e) {
+        print('Error marking volume as read: $e');
+      }
+    }
+  }
+
   Future<void> saveBookmark(int page) async {
     if (_bookId != null && _volume != null) {
       try {
-        // Сохраняем закладку: если page >= 0, то закладка есть
         final isBookmarked = page >= 0;
         await _repository.saveReadingProgress(
           _bookId!,
           _volume!.id,
-          _volume!.lastReadPage, // Сохраняем текущую страницу
+          _volume!.lastReadPage,
           isBookmarked,
         );
-        // Обновляем состояние закладки в объекте volume
         _volume!.isBookmarked = isBookmarked;
       } catch (e) {
         print('Error saving bookmark: $e');

@@ -14,18 +14,18 @@ import 'controllers/reader_controller.dart';
 import 'controllers/category_controller.dart';
 import 'controllers/import_controller.dart';
 import 'controllers/background_controller.dart';
+import 'controllers/settings_controller.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Инициализация Hive с учетом платформы
   await HiveService.init();
-
-  // Открываем коробку для настроек
   await Hive.openBox('settings');
 
-  // Регистрация репозиториев и контроллеров в GetX
+  // РЕГИСТРИРУЕМ ВСЕ КОНТРОЛЛЕРЫ В ПРАВИЛЬНОМ ПОРЯДКЕ
   Get.put(BookRepository(), permanent: true);
+  Get.put(SettingsController(),
+      permanent: true); // ДОЛЖЕН БЫТЬ ПОСЛЕ BookRepository
   Get.put(CategoryController(), permanent: true);
   Get.put(BackgroundController(), permanent: true);
   Get.put(ImportController(), permanent: true);

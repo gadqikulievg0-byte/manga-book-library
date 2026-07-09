@@ -1,0 +1,5 @@
+TITLE: GALAXIAS
+STATUS: new
+
+VOLUMES:
+  1: GALAXIAS 第1巻.pdf|new

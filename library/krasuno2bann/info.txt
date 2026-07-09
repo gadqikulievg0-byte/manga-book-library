@@ -1,0 +1,7 @@
+TITLE: krasuno2bann
+STATUS: new
+
+VOLUMES:
+  1: 第1巻.pdf|new
+  2: 第2巻.pdf|new
+  3: 第3巻.pdf|new

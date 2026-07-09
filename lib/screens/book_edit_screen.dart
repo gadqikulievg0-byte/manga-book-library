@@ -1,10 +1,9 @@
-import 'dart:io';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/book_controller.dart';
-import '../widgets/volume_tile.dart';
 import '../widgets/category_selector.dart';
 import '../data/models/book.dart';
 
@@ -73,7 +72,7 @@ class _BookEditScreenState extends State<BookEditScreen> {
                 const SizedBox(height: 16),
                 _buildDescriptionField(),
                 const SizedBox(height: 16),
-                _buildStatusSection(), // Добавлено
+                _buildStatusSection(),
                 const SizedBox(height: 16),
                 _buildCategoriesSection(),
                 const SizedBox(height: 16),
@@ -227,10 +226,33 @@ class _BookEditScreenState extends State<BookEditScreen> {
             itemCount: controller.volumes.length,
             itemBuilder: (context, index) {
               final volume = controller.volumes[index];
-              return VolumeTile(
-                volume: volume,
-                onTap: () => _showEditVolumeDialog(index),
-                onDelete: () => controller.removeVolume(index),
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: SizedBox(
+                      width: 40,
+                      height: 56,
+                      child: _buildVolumeCoverPreview(volume),
+                    ),
+                  ),
+                  title: Text(volume.title,
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 20),
+                        onPressed: () => _showEditVolumeDialog(index),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => controller.removeVolume(index),
+                      ),
+                    ],
+                  ),
+                ),
               );
             },
           ),
@@ -268,6 +290,50 @@ class _BookEditScreenState extends State<BookEditScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildVolumeCoverPreview(volume) {
+    if (volume.coverPath == null || volume.coverPath!.isEmpty) {
+      return Container(
+        color: Colors.grey[850],
+        child: const Icon(Icons.picture_as_pdf, size: 20, color: Colors.red),
+      );
+    }
+
+    if (kIsWeb) {
+      try {
+        if (volume.coverPath!.startsWith('data:image')) {
+          final base64String = volume.coverPath!.split(',').last;
+          final bytes = base64Decode(base64String);
+          return Image.memory(bytes, fit: BoxFit.cover);
+        } else {
+          return Image.network(volume.coverPath!, fit: BoxFit.cover);
+        }
+      } catch (e) {
+        return Container(
+          color: Colors.grey[850],
+          child: const Icon(Icons.picture_as_pdf, size: 20, color: Colors.red),
+        );
+      }
+    } else {
+      try {
+        final file = File(volume.coverPath!);
+        if (file.existsSync()) {
+          return Image.file(file, fit: BoxFit.cover);
+        } else {
+          return Container(
+            color: Colors.grey[850],
+            child:
+                const Icon(Icons.picture_as_pdf, size: 20, color: Colors.red),
+          );
+        }
+      } catch (e) {
+        return Container(
+          color: Colors.grey[850],
+          child: const Icon(Icons.picture_as_pdf, size: 20, color: Colors.red),
+        );
+      }
+    }
   }
 
   Widget _buildSaveButton() {

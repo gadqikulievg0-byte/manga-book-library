@@ -22,15 +22,18 @@ class Volume extends HiveObject {
   @HiveField(4)
   bool isBookmarked;
 
+  @HiveField(5) // НОВОЕ ПОЛЕ
+  String? coverPath;
+
   Volume({
     String? id,
     required this.title,
     required this.filePath,
     this.lastReadPage = 0,
     this.isBookmarked = false,
+    this.coverPath,
   }) : id = id ?? const Uuid().v4();
 
-  // Геттер для имени файла
   String get fileName {
     if (kIsWeb) {
       return filePath.split('/').last;
@@ -47,6 +50,7 @@ class Volume extends HiveObject {
     String? filePath,
     int? lastReadPage,
     bool? isBookmarked,
+    String? coverPath,
   }) {
     return Volume(
       id: id,
@@ -54,6 +58,7 @@ class Volume extends HiveObject {
       filePath: filePath ?? this.filePath,
       lastReadPage: lastReadPage ?? this.lastReadPage,
       isBookmarked: isBookmarked ?? this.isBookmarked,
+      coverPath: coverPath ?? this.coverPath,
     );
   }
 }

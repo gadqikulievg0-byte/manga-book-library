@@ -92,4 +92,29 @@ class BookRepository extends GetxController {
       }
     }
   }
+
+// Добавьте этот метод в BookRepository
+  Future<void> markVolumeAsRead(String bookId, String volumeId) async {
+    final book = getBookById(bookId);
+    if (book != null) {
+      final volumeIndex = book.volumes.indexWhere((v) => v.id == volumeId);
+      if (volumeIndex != -1) {
+        // Отмечаем том как прочитанный (устанавливаем lastReadPage на -1)
+        book.volumes[volumeIndex].lastReadPage = -1;
+        await saveBook(book);
+
+        // Проверяем, все ли тома прочитаны
+        final allRead = book.volumes.every((v) => v.lastReadPage == -1);
+        if (allRead && book.status != BookStatus.read) {
+          book.status = BookStatus.read;
+          await saveBook(book);
+        }
+      }
+    }
+  }
+
+  void loadBooks() {
+    // Просто вызывает обновление, если нужно
+    // Этот метод уже есть, но если нет - добавьте
+  }
 }
