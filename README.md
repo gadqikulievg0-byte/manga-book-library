@@ -1,7 +1,6 @@
 # manga_book_library
 
-A new Flutter project.
-
+Мне надоело, что мои книги хранятся где попало. В облаке, на флешке, на ссд и на разных устройтсвах. По этому я создал это приложение, в котором все мои книги будут удобно собранны в общую библиотеку.
 ## Getting Started
 
 This project is a starting point for a Flutter application.
