@@ -10,14 +10,15 @@ class HiveService {
   static Future<void> init() async {
     // Инициализация Hive
     if (!kIsWeb) {
-      final appDocumentDir = await path_provider
-          .getApplicationDocumentsDirectory();
+      final appDocumentDir =
+          await path_provider.getApplicationDocumentsDirectory();
       Hive.init(appDocumentDir.path);
     } else {
       await Hive.initFlutter();
     }
 
     // Регистрация адаптеров
+    Hive.registerAdapter(BookStatusAdapter());
     Hive.registerAdapter(BookAdapter());
     Hive.registerAdapter(VolumeAdapter());
 

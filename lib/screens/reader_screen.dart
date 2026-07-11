@@ -1,9 +1,8 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
 import 'package:get/get.dart';
-import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:pdfrx/pdfrx.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../controllers/reader_controller.dart';
@@ -21,15 +20,14 @@ class ReaderScreen extends StatefulWidget {
 
 class _ReaderScreenState extends State<ReaderScreen> {
   late final ReaderController _controller;
-  late final PdfViewerController _pdfController;
   late final Volume _volume;
   late final String _bookId;
   late final int _initialPage;
   int _totalPages = 1;
   bool _isBookmarked = false;
-  bool _isLoading = true;
   int _currentPage = 1;
-  double _currentZoom = 1.0;
+  PdfViewerController? _pdfViewerController;
+  PdfDocumentRef? _documentRef;
 
   final Map<int, String> _bookmarks = {};
 
@@ -37,7 +35,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void initState() {
     super.initState();
     _controller = Get.find<ReaderController>();
-    _pdfController = PdfViewerController();
 
     final args = Get.arguments as Map<String, dynamic>? ?? {};
     _bookId = args['bookId'] as String? ?? '';
@@ -52,10 +49,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
     _updateBookStatus();
     _loadBookmarks();
+    _loadPdf();
+  }
+
+  void _handlePageChange() {
+    if (_pdfViewerController != null && _pdfViewerController!.isReady) {
+      setState(() {
+        _currentPage = _pdfViewerController!.pageNumber ?? 1;
+      });
+    }
   }
 
   @override
   void dispose() {
+    _pdfViewerController?.removeListener(_handlePageChange);
     _saveProgress();
     super.dispose();
   }
@@ -69,19 +76,28 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _loadBookmarks() {
-    if (_volume.isBookmarked) {
-      _bookmarks[_initialPage] = 'Страница $_initialPage';
+    if (_volume.isBookmarked && _volume.bookmarkPage != null) {
+      _bookmarks[_volume.bookmarkPage!] = 'Страница ${_volume.bookmarkPage}';
+    }
+  }
+
+  Future<void> _loadPdf() async {
+    try {
+      _documentRef = PdfDocumentRefFile(_volume.filePath);
+      setState(() {});
+    } catch (e) {
+      SnackbarHelper.error('Не удалось загрузить PDF');
     }
   }
 
   Future<void> _saveProgress() async {
     try {
-      final page = _pdfController.pageNumber;
-      final totalPages = _pdfController.pageCount ?? 1;
-      if (page != null && page > 0) {
+      final page = _currentPage;
+      final totalPages = _totalPages;
+      if (page > 0) {
         await _controller.saveProgress(page - 1, _isBookmarked);
 
-        final isFinished = page >= totalPages - 1;
+        final isFinished = page >= totalPages;
         if (isFinished) {
           await _controller.markVolumeAsRead();
           SnackbarHelper.success('Том прочитан!');
@@ -93,7 +109,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _addBookmark() async {
-    final currentPage = _pdfController.pageNumber ?? 1;
+    final currentPage = _currentPage;
     if (_bookmarks.containsKey(currentPage)) {
       SnackbarHelper.info('Закладка уже есть на этой странице');
       return;
@@ -133,7 +149,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 subtitle: Text('Страница ${entry.key}'),
                 onTap: () {
                   Navigator.pop(context);
-                  _pdfController.jumpToPage(entry.key);
+                  _goToPageNumber(entry.key);
                 },
                 trailing: IconButton(
                   icon: const Icon(Icons.delete, color: Colors.red),
@@ -156,8 +172,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
+  void _goToPageNumber(int page) {
+    if (_pdfViewerController != null && _pdfViewerController!.isReady) {
+      _pdfViewerController!.goToPage(pageNumber: page);
+    }
+    setState(() => _currentPage = page);
+  }
+
   void _goToPage() async {
-    final totalPages = _pdfController.pageCount ?? 1;
+    final totalPages = _totalPages;
     final textController = TextEditingController();
     final pageNumber = await showDialog<int>(
       context: context,
@@ -172,8 +195,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
           ),
           onSubmitted: (value) {
             final page = int.tryParse(value);
-            if (page != null && page >= 1 && page <= totalPages)
+            if (page != null && page >= 1 && page <= totalPages) {
               Navigator.pop(context, page);
+            }
           },
         ),
         actions: [
@@ -195,11 +219,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       ),
     );
     if (pageNumber != null) {
-      try {
-        _pdfController.jumpToPage(pageNumber);
-      } catch (e) {
-        SnackbarHelper.error('Не удалось перейти на страницу $pageNumber');
-      }
+      _goToPageNumber(pageNumber);
     }
   }
 
@@ -248,23 +268,47 @@ class _ReaderScreenState extends State<ReaderScreen> {
           ),
           actions: [
             IconButton(
+                icon: const Icon(Icons.zoom_in),
+                onPressed: () {
+                  if (_pdfViewerController != null &&
+                      _pdfViewerController!.isReady) {
+                    _pdfViewerController!.zoomUp();
+                  }
+                },
+                tooltip: 'Увеличить'),
+            IconButton(
                 icon: const Icon(Icons.zoom_out),
                 onPressed: () {
-                  setState(() {
-                    _pdfController.zoomLevel =
-                        (_pdfController.zoomLevel - 0.25).clamp(0.5, 5.0);
-                  });
+                  if (_pdfViewerController != null &&
+                      _pdfViewerController!.isReady) {
+                    _pdfViewerController!.zoomDown();
+                  }
                 },
                 tooltip: 'Уменьшить'),
             IconButton(
-                icon: const Icon(Icons.zoom_in),
+                icon: const Icon(Icons.arrow_back),
                 onPressed: () {
-                  setState(() {
-                    _pdfController.zoomLevel =
-                        (_pdfController.zoomLevel + 0.25).clamp(0.5, 5.0);
-                  });
+                  if (_currentPage > 1 &&
+                      _pdfViewerController != null &&
+                      _pdfViewerController!.isReady) {
+                    _pdfViewerController!
+                        .goToPage(pageNumber: _currentPage - 1);
+                    setState(() => _currentPage--);
+                  }
                 },
-                tooltip: 'Увеличить'),
+                tooltip: 'Предыдущая страница'),
+            IconButton(
+                icon: const Icon(Icons.arrow_forward),
+                onPressed: () {
+                  if (_currentPage < _totalPages &&
+                      _pdfViewerController != null &&
+                      _pdfViewerController!.isReady) {
+                    _pdfViewerController!
+                        .goToPage(pageNumber: _currentPage + 1);
+                    setState(() => _currentPage++);
+                  }
+                },
+                tooltip: 'Следующая страница'),
             IconButton(
                 icon: const Icon(Icons.bookmarks),
                 onPressed: _showBookmarksDialog,
@@ -285,20 +329,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               ),
           ],
         ),
-        body: GestureDetector(
-          onScaleStart: (details) {
-            _currentZoom = _pdfController.zoomLevel;
-          },
-          onScaleUpdate: (details) {
-            if (details.scale != 1.0) {
-              setState(() {
-                _currentZoom = (_currentZoom * details.scale).clamp(0.5, 5.0);
-                _pdfController.zoomLevel = _currentZoom;
-              });
-            }
-          },
-          child: _buildPdfViewer(),
-        ),
+        body: _buildPdfViewer(),
       ),
     );
   }
@@ -324,51 +355,32 @@ class _ReaderScreenState extends State<ReaderScreen> {
       );
     }
 
-    try {
-      return SfPdfViewer.file(
-        File(_volume.filePath),
-        controller: _pdfController,
-        enableDoubleTapZooming: true,
-        maxZoomLevel: 5.0,
-        onDocumentLoaded: (details) {
-          setState(() {
-            _isLoading = false;
-            _totalPages = _pdfController.pageCount ?? 1;
-          });
-          Future.delayed(const Duration(milliseconds: 300), () {
-            try {
-              _pdfController.jumpToPage(_initialPage);
-            } catch (e) {
-              // Игнорируем ошибки перехода
-            }
-          });
-        },
-        onPageChanged: (details) {
-          if (details.newPageNumber != null && details.newPageNumber! > 0) {
+    if (_documentRef == null) {
+      return const Center(
+          child: CircularProgressIndicator(color: Colors.white));
+    }
+
+    return PdfViewer(
+      _documentRef!,
+      params: PdfViewerParams(
+        onDocumentChanged: (doc) async {
+          if (doc != null) {
             setState(() {
-              _currentPage = details.newPageNumber!;
-              _totalPages = _pdfController.pageCount ?? 1;
+              _totalPages = doc.pages.length;
             });
           }
         },
-      );
-    } catch (e) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            const Text('Ошибка загрузки PDF',
-                style: TextStyle(color: Colors.white, fontSize: 18)),
-            const SizedBox(height: 8),
-            Text(e.toString(),
-                style: const TextStyle(color: Colors.grey),
-                textAlign: TextAlign.center),
-          ],
-        ),
-      );
-    }
+        onViewerReady: (doc, controller) async {
+          _pdfViewerController = controller;
+          // Добавляем слушатель для отслеживания страницы
+          controller.addListener(_handlePageChange);
+          // Переход к начальной странице
+          if (_initialPage > 1) {
+            controller.goToPage(pageNumber: _initialPage);
+          }
+        },
+      ),
+    );
   }
 
   Future<void> _openExternal(String filePath) async {

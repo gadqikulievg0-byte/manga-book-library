@@ -6,9 +6,13 @@ import 'volume.dart';
 part 'book.g.dart';
 
 // Enum должен быть снаружи класса
+@HiveType(typeId: 2)
 enum BookStatus {
+  @HiveField(0)
   newBook,
+  @HiveField(1)
   reading,
+  @HiveField(2)
   read,
 }
 

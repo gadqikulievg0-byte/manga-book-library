@@ -25,6 +25,9 @@ class Volume extends HiveObject {
   @HiveField(5) // НОВОЕ ПОЛЕ
   String? coverPath;
 
+  @HiveField(6) // Страница закладки
+  int? bookmarkPage;
+
   Volume({
     String? id,
     required this.title,
@@ -32,7 +35,18 @@ class Volume extends HiveObject {
     this.lastReadPage = 0,
     this.isBookmarked = false,
     this.coverPath,
+    this.bookmarkPage,
   }) : id = id ?? const Uuid().v4();
+
+  // Конструктор для Hive, чтобы избежать ошибок при чтении старых данных
+  Volume.fromJson(Map<String, dynamic> json)
+      : id = json['id'] as String,
+        title = json['title'] as String,
+        filePath = json['filePath'] as String,
+        lastReadPage = json['lastReadPage'] as int? ?? 0,
+        isBookmarked = json['isBookmarked'] as bool? ?? false,
+        coverPath = json['coverPath'] as String?,
+        bookmarkPage = json['bookmarkPage'] as int?;
 
   String get fileName {
     if (kIsWeb) {
@@ -51,6 +65,7 @@ class Volume extends HiveObject {
     int? lastReadPage,
     bool? isBookmarked,
     String? coverPath,
+    int? bookmarkPage,
   }) {
     return Volume(
       id: id,
@@ -59,6 +74,7 @@ class Volume extends HiveObject {
       lastReadPage: lastReadPage ?? this.lastReadPage,
       isBookmarked: isBookmarked ?? this.isBookmarked,
       coverPath: coverPath ?? this.coverPath,
+      bookmarkPage: bookmarkPage ?? this.bookmarkPage,
     );
   }
 }

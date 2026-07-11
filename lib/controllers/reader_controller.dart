@@ -63,8 +63,10 @@ class ReaderController extends GetxController {
           _volume!.id,
           _volume!.lastReadPage,
           isBookmarked,
+          bookmarkPage: page >= 0 ? page : null,
         );
         _volume!.isBookmarked = isBookmarked;
+        _volume!.bookmarkPage = page >= 0 ? page : null;
       } catch (e) {
         print('Error saving bookmark: $e');
       }

@@ -48,13 +48,17 @@ class BookRepository extends GetxController {
   }
 
   Future<void> saveReadingProgress(
-      String bookId, String volumeId, int page, bool isBookmarked) async {
+      String bookId, String volumeId, int page, bool isBookmarked,
+      {int? bookmarkPage}) async {
     final book = getBookById(bookId);
     if (book != null) {
       final volumeIndex = book.volumes.indexWhere((v) => v.id == volumeId);
       if (volumeIndex != -1) {
         book.volumes[volumeIndex].lastReadPage = page;
         book.volumes[volumeIndex].isBookmarked = isBookmarked;
+        if (bookmarkPage != null) {
+          book.volumes[volumeIndex].bookmarkPage = bookmarkPage;
+        }
 
         // Обновляем статус книги на "Читается", если он еще "Новая"
         if (book.status == BookStatus.newBook) {
