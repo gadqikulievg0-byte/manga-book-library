@@ -17,6 +17,14 @@ class LibraryController extends GetxController {
     loadBooks();
   }
 
+  // Статистика
+  int get totalBooks => books.length;
+  int get totalVolumes => books.fold(0, (sum, book) => sum + book.volumeCount);
+  int get newBooks => books.where((b) => b.status == BookStatus.newBook).length;
+  int get readingBooks =>
+      books.where((b) => b.status == BookStatus.reading).length;
+  int get readBooks => books.where((b) => b.status == BookStatus.read).length;
+
   void loadBooks() {
     isLoading.value = true;
     try {
@@ -30,7 +38,6 @@ class LibraryController extends GetxController {
   void filterBooks() {
     var filtered = books.toList();
 
-    // Фильтр по поисковому запросу
     if (searchQuery.value.isNotEmpty) {
       filtered = filtered
           .where((book) => book.title
@@ -39,11 +46,9 @@ class LibraryController extends GetxController {
           .toList();
     }
 
-    // Фильтр по категориям и статусам
     try {
       final categoryController = Get.find<CategoryController>();
 
-      // Фильтр по категориям
       if (categoryController.selectedCategories.isNotEmpty) {
         filtered = filtered
             .where((book) => book.categories.any((category) =>
@@ -51,7 +56,6 @@ class LibraryController extends GetxController {
             .toList();
       }
 
-      // Фильтр по статусам
       if (categoryController.selectedStatus.isNotEmpty) {
         filtered = filtered
             .where((book) =>
@@ -72,6 +76,13 @@ class LibraryController extends GetxController {
 
   Future<void> deleteBook(String id) async {
     await _repository.deleteBook(id);
+    loadBooks();
+  }
+
+  Future<void> deleteBooks(List<String> ids) async {
+    for (final id in ids) {
+      await _repository.deleteBook(id);
+    }
     loadBooks();
   }
 

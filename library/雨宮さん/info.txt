@@ -1,0 +1,6 @@
+TITLE: 雨宮さん
+CATEGORIES: любимая
+STATUS: new
+
+VOLUMES:
+  1: Том 1|new

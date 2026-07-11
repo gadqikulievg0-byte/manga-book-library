@@ -205,7 +205,7 @@ class _BookEditScreenState extends State<BookEditScreen> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             ElevatedButton.icon(
-              onPressed: controller.addVolume,
+              onPressed: controller.addMultipleVolumes,
               icon: const Icon(Icons.add),
               label: const Text('Добавить PDF'),
             ),

@@ -86,8 +86,25 @@ class Book extends HiveObject {
 
   List<Volume> get sortedVolumes {
     final sorted = List<Volume>.from(volumes);
-    sorted.sort((a, b) => a.title.compareTo(b.title));
+    sorted.sort((a, b) {
+      // Пытаемся извлечь числа из названий томов для числовой сортировки
+      final aNum = _extractVolumeNumber(a.title);
+      final bNum = _extractVolumeNumber(b.title);
+      if (aNum != null && bNum != null) {
+        return aNum.compareTo(bNum);
+      }
+      return a.title.compareTo(b.title);
+    });
     return sorted;
+  }
+
+  /// Извлекает число из названия тома (например "Том 1" -> 1, "Chapter 5" -> 5)
+  int? _extractVolumeNumber(String title) {
+    final match = RegExp(r'(\d+)').firstMatch(title);
+    if (match != null) {
+      return int.tryParse(match.group(1)!);
+    }
+    return null;
   }
 
   Book copyWith({

@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path/path.dart' as path;
 import '../data/repositories/book_repository.dart';
+import '../core/snackbar_helper.dart';
 
 class SettingsController extends GetxController {
   static const String _boxName = 'settings';
@@ -33,7 +34,7 @@ class SettingsController extends GetxController {
       if (result != null) {
         libraryPath.value = result;
         await _box.put('library_path', result);
-        Get.snackbar('Успех', 'Путь к библиотеке изменен');
+        SnackbarHelper.success('Путь к библиотеке изменен');
         // Перезагружаем книги
         try {
           final repo = Get.find<BookRepository>();
@@ -43,7 +44,7 @@ class SettingsController extends GetxController {
         }
       }
     } catch (e) {
-      Get.snackbar('Ошибка', 'Не удалось изменить путь: $e');
+      SnackbarHelper.error('Не удалось изменить путь: $e');
     }
   }
 

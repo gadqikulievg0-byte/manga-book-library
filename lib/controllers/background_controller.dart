@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import '../core/snackbar_helper.dart';
 
 class BackgroundController extends GetxController {
   static const String _boxName = 'settings';
@@ -67,18 +68,18 @@ class BackgroundController extends GetxController {
         if (imageData != null) {
           backgroundImage.value = imageData;
           await _box.put('background_image', imageData);
-          Get.snackbar('Успех', 'Фон изменен');
+          SnackbarHelper.success('Фон изменен');
         }
       }
     } catch (e) {
-      Get.snackbar('Ошибка', 'Не удалось загрузить фон: $e');
+      SnackbarHelper.error('Не удалось загрузить фон: $e');
     }
   }
 
   void removeBackground() {
     backgroundImage.value = '';
     _box.delete('background_image');
-    Get.snackbar('Фон удален', '');
+    SnackbarHelper.info('Фон удален');
   }
 
   void setOpacity(double value) {

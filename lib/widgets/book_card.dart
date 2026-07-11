@@ -6,70 +6,103 @@ import '../data/models/book.dart';
 
 class BookCard extends StatelessWidget {
   final Book book;
-  final VoidCallback onTap;
+  final VoidCallback onBookTap;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final bool isSelected;
+  final bool isSelectionMode;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onSelectionToggle;
 
   const BookCard({
     super.key,
     required this.book,
-    required this.onTap,
+    required this.onBookTap,
     required this.onEdit,
     required this.onDelete,
+    this.isSelected = false,
+    this.isSelectionMode = false,
+    this.onLongPress,
+    this.onSelectionToggle,
   });
 
   @override
   Widget build(BuildContext context) {
-    // ПРОСТО ИСПОЛЬЗУЕМ MEDIAQUERY ДЛЯ ОПРЕДЕЛЕНИЯ РАЗМЕРА
     final screenWidth = MediaQuery.of(context).size.width;
 
-    // ОПРЕДЕЛЯЕМ РАЗМЕР КАРТОЧКИ ПО ШИРИНЕ ЭКРАНА
     double textSize;
     double iconSize;
     double statusSize;
     double paddingSize;
 
     if (screenWidth < 400) {
-      // Очень маленький экран
+      textSize = 7;
+      iconSize = 9;
+      statusSize = 6;
+      paddingSize = 2;
+    } else if (screenWidth < 700) {
       textSize = 8;
       iconSize = 10;
       statusSize = 7;
       paddingSize = 2;
-    } else if (screenWidth < 700) {
-      // Маленький экран
+    } else if (screenWidth < 1000) {
       textSize = 9;
-      iconSize = 11;
+      iconSize = 12;
       statusSize = 8;
       paddingSize = 3;
-    } else if (screenWidth < 1000) {
-      // Средний экран
-      textSize = 11;
-      iconSize = 14;
-      statusSize = 9;
-      paddingSize = 4;
     } else {
-      // Большой экран
-      textSize = 13;
-      iconSize = 16;
-      statusSize = 10;
-      paddingSize = 5;
+      textSize = 10;
+      iconSize = 13;
+      statusSize = 8;
+      paddingSize = 3;
     }
 
     return Card(
       clipBehavior: Clip.antiAlias,
-      elevation: 2,
+      elevation: isSelected ? 4 : 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(6),
+        side: isSelectionMode
+            ? BorderSide(
+                color: isSelected ? Colors.blue : Colors.white24,
+                width: isSelected ? 2 : 1,
+              )
+            : BorderSide.none,
       ),
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          if (isSelectionMode) {
+            onSelectionToggle?.call();
+          } else {
+            onBookTap.call();
+          }
+        },
+        onLongPress: onLongPress,
         child: Stack(
           children: [
+            // ЧЕКБОКС ВЫДЕЛЕНИЯ
+            if (isSelectionMode)
+              Positioned(
+                top: paddingSize,
+                left: paddingSize,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.blue : Colors.black54,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: isSelected
+                      ? const Icon(Icons.check, size: 16, color: Colors.white)
+                      : null,
+                ),
+              ),
             // ОБЛОЖКА
             Container(
               width: double.infinity,
               height: double.infinity,
-              color: Colors.grey[200],
+              color: Colors.grey[850],
               child: _buildCover(),
             ),
             // СТАТУС - сверху справа
@@ -80,7 +113,7 @@ class BookCard extends StatelessWidget {
                 padding:
                     EdgeInsets.symmetric(horizontal: paddingSize, vertical: 1),
                 decoration: BoxDecoration(
-                  color: book.status.color.withOpacity(0.85),
+                  color: book.status.color,
                   borderRadius: BorderRadius.circular(3),
                 ),
                 child: Row(
@@ -118,7 +151,7 @@ class BookCard extends StatelessWidget {
                     end: Alignment.bottomCenter,
                     colors: [
                       Colors.transparent,
-                      Colors.black.withOpacity(0.75),
+                      Colors.black,
                     ],
                     stops: const [0.0, 1.0],
                   ),
@@ -172,44 +205,46 @@ class BookCard extends StatelessWidget {
                 ),
               ),
             ),
-            // КНОПКИ - сверху слева
-            Positioned(
-              top: paddingSize,
-              left: paddingSize,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.edit, size: iconSize, color: Colors.white),
-                    onPressed: onEdit,
-                    padding: EdgeInsets.zero,
-                    constraints: BoxConstraints(
-                      minWidth: iconSize + 4,
-                      minHeight: iconSize + 4,
+            // КНОПКИ - сверху слева (скрываем в режиме выделения)
+            if (!isSelectionMode)
+              Positioned(
+                top: paddingSize,
+                left: paddingSize,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon:
+                          Icon(Icons.edit, size: iconSize, color: Colors.white),
+                      onPressed: onEdit,
+                      padding: EdgeInsets.zero,
+                      constraints: BoxConstraints(
+                        minWidth: iconSize + 4,
+                        minHeight: iconSize + 4,
+                      ),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black54,
+                        padding: EdgeInsets.all(paddingSize),
+                      ),
                     ),
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.black.withOpacity(0.5),
-                      padding: EdgeInsets.all(paddingSize),
+                    const SizedBox(width: 2),
+                    IconButton(
+                      icon: Icon(Icons.delete,
+                          size: iconSize, color: Colors.white),
+                      onPressed: onDelete,
+                      padding: EdgeInsets.zero,
+                      constraints: BoxConstraints(
+                        minWidth: iconSize + 4,
+                        minHeight: iconSize + 4,
+                      ),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.red.shade700,
+                        padding: EdgeInsets.all(paddingSize),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 2),
-                  IconButton(
-                    icon:
-                        Icon(Icons.delete, size: iconSize, color: Colors.white),
-                    onPressed: onDelete,
-                    padding: EdgeInsets.zero,
-                    constraints: BoxConstraints(
-                      minWidth: iconSize + 4,
-                      minHeight: iconSize + 4,
-                    ),
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.red.withOpacity(0.6),
-                      padding: EdgeInsets.all(paddingSize),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -217,20 +252,36 @@ class BookCard extends StatelessWidget {
   }
 
   Widget _buildCover() {
-    if (book.coverPath == null || book.coverPath!.isEmpty) {
-      return Center(
-        child: Icon(
-          Icons.book,
-          size: 40,
-          color: Colors.grey[400],
+    // Пытаемся получить обложку книги
+    String? coverToUse = book.coverPath;
+
+    // Если обложки нет, пробуем взять из первого тома (по сортировке)
+    if (coverToUse == null || coverToUse.isEmpty) {
+      if (book.volumes.isNotEmpty) {
+        final firstVol = book.sortedVolumes.first;
+        if (firstVol.coverPath != null && firstVol.coverPath!.isNotEmpty) {
+          coverToUse = firstVol.coverPath;
+        }
+      }
+    }
+
+    if (coverToUse == null || coverToUse.isEmpty) {
+      return Container(
+        color: Colors.grey[850],
+        child: Center(
+          child: Icon(
+            Icons.book,
+            size: 40,
+            color: Colors.grey[600],
+          ),
         ),
       );
     }
 
     if (kIsWeb) {
       try {
-        if (book.coverPath!.startsWith('data:image')) {
-          final bytes = base64Decode(book.coverPath!.split(',').last);
+        if (coverToUse.startsWith('data:image')) {
+          final bytes = base64Decode(coverToUse.split(',').last);
           return Image.memory(
             bytes,
             fit: BoxFit.cover,
@@ -239,7 +290,7 @@ class BookCard extends StatelessWidget {
           );
         }
         return Image.network(
-          book.coverPath!,
+          coverToUse,
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) =>
               const Icon(Icons.broken_image, size: 40),
@@ -249,7 +300,7 @@ class BookCard extends StatelessWidget {
       }
     } else {
       try {
-        final file = File(book.coverPath!);
+        final file = File(coverToUse);
         if (file.existsSync()) {
           return Image.file(
             file,
@@ -258,11 +309,14 @@ class BookCard extends StatelessWidget {
                 const Icon(Icons.broken_image, size: 40),
           );
         }
-        return Center(
-          child: Icon(
-            Icons.book,
-            size: 40,
-            color: Colors.grey[400],
+        return Container(
+          color: Colors.grey[850],
+          child: Center(
+            child: Icon(
+              Icons.book,
+              size: 40,
+              color: Colors.grey[600],
+            ),
           ),
         );
       } catch (e) {

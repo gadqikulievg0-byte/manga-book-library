@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 import '../data/models/book.dart';
 import '../data/models/volume.dart';
 import '../data/repositories/book_repository.dart';
+import '../core/snackbar_helper.dart';
 
 // ВЫНОСИМ КЛАСС НАРУЖУ
 class MangaInfo {
@@ -64,7 +65,7 @@ class ImportController extends GetxController {
   // Выбор папки и импорт
   Future<void> importLibrary() async {
     if (kIsWeb) {
-      Get.snackbar('Ошибка', 'Импорт доступен только в десктопной версии');
+      SnackbarHelper.error('Импорт доступен только в десктопной версии');
       return;
     }
 
@@ -84,7 +85,7 @@ class ImportController extends GetxController {
     try {
       final rootDir = Directory(rootPath);
       if (!await rootDir.exists()) {
-        Get.snackbar('Ошибка', 'Папка не найдена');
+        SnackbarHelper.error('Папка не найдена');
         return;
       }
 
@@ -93,7 +94,7 @@ class ImportController extends GetxController {
       }).toList();
 
       totalFound.value = mangaFolders.length;
-      Get.snackbar('Импорт', 'Найдено папок: ${mangaFolders.length}');
+      SnackbarHelper.info('Найдено папок: ${mangaFolders.length}');
 
       for (var i = 0; i < mangaFolders.length; i++) {
         final folder = mangaFolders[i] as Directory;
@@ -103,9 +104,9 @@ class ImportController extends GetxController {
         importedCount.value = i + 1;
       }
 
-      Get.snackbar('Готово!', 'Импортировано ${importedCount.value} манг');
+      SnackbarHelper.success('Импортировано ${importedCount.value} манг');
     } catch (e) {
-      Get.snackbar('Ошибка', 'Ошибка импорта: $e');
+      SnackbarHelper.error('Ошибка импорта: $e');
     } finally {
       isImporting.value = false;
       progress.value = 0;
@@ -224,9 +225,9 @@ class ImportController extends GetxController {
       content += 'STATUS: $status\n';
 
       await infoFile.writeAsString(content);
-      Get.snackbar('Успех', 'Файл info.txt создан в папке манги');
+      SnackbarHelper.success('Файл info.txt создан в папке манги');
     } catch (e) {
-      Get.snackbar('Ошибка', 'Не удалось создать info.txt: $e');
+      SnackbarHelper.error('Не удалось создать info.txt: $e');
     }
   }
 }

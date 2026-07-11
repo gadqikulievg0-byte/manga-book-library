@@ -12,6 +12,7 @@ import 'settings_controller.dart';
 import '../data/repositories/book_repository.dart';
 import 'category_controller.dart';
 import '../core/pdf_cover_extractor.dart';
+import '../core/snackbar_helper.dart';
 
 class BookController extends GetxController {
   final BookRepository _repository = Get.find<BookRepository>();
@@ -114,10 +115,10 @@ class BookController extends GetxController {
         } else {
           coverPath.value = image.path;
         }
-        Get.snackbar('Успех', 'Обложка добавлена');
+        SnackbarHelper.success('Обложка добавлена');
       }
     } catch (e) {
-      Get.snackbar('Ошибка', 'Не удалось выбрать изображение: $e');
+      SnackbarHelper.error('Не удалось выбрать изображение: $e');
     }
   }
 
@@ -207,6 +208,7 @@ class BookController extends GetxController {
     await infoFile.writeAsString(content);
   }
 
+  /// Добавляет один PDF том
   Future<void> addVolume() async {
     try {
       FilePickerResult? result;
@@ -243,10 +245,63 @@ class BookController extends GetxController {
           lastReadPage: 0,
         );
         volumes.add(volume);
-        Get.snackbar('Успех', 'Том добавлен: $fileName');
+        SnackbarHelper.success('Том добавлен: $fileName');
       }
     } catch (e) {
-      Get.snackbar('Ошибка', 'Не удалось добавить том: $e');
+      SnackbarHelper.error('Ошибка: $e');
+    }
+  }
+
+  /// Добавляет несколько PDF томов за раз
+  Future<void> addMultipleVolumes() async {
+    try {
+      FilePickerResult? result;
+
+      if (kIsWeb) {
+        result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['pdf'],
+          withData: true,
+          allowMultiple: true,
+        );
+      } else {
+        result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['pdf'],
+          allowMultiple: true,
+        );
+      }
+
+      if (result != null && result.files.isNotEmpty) {
+        int added = 0;
+        for (final file in result.files) {
+          String fileName;
+          String filePath;
+
+          if (kIsWeb) {
+            fileName = file.name;
+            filePath = file.name;
+          } else {
+            fileName = file.name;
+            filePath = file.path!;
+          }
+
+          // Проверяем, нет ли уже такого файла
+          bool exists = volumes.any((v) => v.filePath == filePath);
+          if (!exists) {
+            final volume = Volume(
+              title: fileName,
+              filePath: filePath,
+              lastReadPage: 0,
+            );
+            volumes.add(volume);
+            added++;
+          }
+        }
+        SnackbarHelper.success('Добавлено томов: $added');
+      }
+    } catch (e) {
+      SnackbarHelper.error('Ошибка: $e');
     }
   }
 
@@ -254,12 +309,12 @@ class BookController extends GetxController {
     if (_isSaving) return false;
 
     if (title.value.trim().isEmpty) {
-      Get.snackbar('Ошибка', 'Введите название книги');
+      SnackbarHelper.error('Введите название книги');
       return false;
     }
 
     if (volumes.isEmpty) {
-      Get.snackbar('Ошибка', 'Добавьте хотя бы один PDF-файл');
+      SnackbarHelper.error('Добавьте хотя бы один PDF-файл');
       return false;
     }
 
@@ -310,12 +365,28 @@ class BookController extends GetxController {
         ));
       }
 
+      // Определяем обложку книги
       String? finalCoverPath;
       if (!kIsWeb && coverPath.value.isNotEmpty && bookFolderPath != null) {
         final coverFileName = 'cover${path.extension(coverPath.value)}';
         final destCoverPath = path.join(bookFolderPath, coverFileName);
         await File(coverPath.value).copy(destCoverPath);
         finalCoverPath = destCoverPath;
+      } else if (!kIsWeb &&
+          bookFolderPath != null &&
+          processedVolumes.isNotEmpty) {
+        // Если пользователь не указал обложку, используем обложку первого тома
+        final firstVol = processedVolumes.first;
+        if (firstVol.coverPath != null && firstVol.coverPath!.isNotEmpty) {
+          final coverExt = path.extension(firstVol.coverPath!);
+          final destCoverPath = path.join(bookFolderPath, 'cover$coverExt');
+          try {
+            await File(firstVol.coverPath!).copy(destCoverPath);
+            finalCoverPath = destCoverPath;
+          } catch (_) {
+            finalCoverPath = firstVol.coverPath;
+          }
+        }
       } else {
         finalCoverPath = coverPath.value;
       }
@@ -349,10 +420,10 @@ class BookController extends GetxController {
 
       _categoryController.loadCategories();
 
-      Get.snackbar('Успех', 'Книга сохранена');
+      SnackbarHelper.success('Книга сохранена');
       return true;
     } catch (e) {
-      Get.snackbar('Ошибка', 'Не удалось сохранить книгу: $e');
+      SnackbarHelper.error('Не удалось сохранить книгу: $e');
       return false;
     } finally {
       isLoading.value = false;

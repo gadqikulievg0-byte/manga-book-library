@@ -1,15 +1,16 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:get/get.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../controllers/reader_controller.dart';
-import '../core/reading_mode.dart';
 import '../data/models/book.dart';
 import '../data/models/volume.dart';
 import '../data/repositories/book_repository.dart';
+import '../core/snackbar_helper.dart';
 
 class ReaderScreen extends StatefulWidget {
   const ReaderScreen({super.key});
@@ -24,9 +25,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
   late final Volume _volume;
   late final String _bookId;
   late final int _initialPage;
-  bool _isVertical = true;
   int _totalPages = 1;
   bool _isBookmarked = false;
+  bool _isLoading = true;
+  int _currentPage = 1;
+  double _currentZoom = 1.0;
 
   final Map<int, String> _bookmarks = {};
 
@@ -45,11 +48,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
     _controller.initReader(bookId: _bookId, volume: _volume);
     _initialPage = (_volume.lastReadPage + 1).clamp(1, 999999);
-    _isVertical = _controller.readingMode.value == ReadingMode.vertical;
     _isBookmarked = _volume.isBookmarked;
 
     _updateBookStatus();
     _loadBookmarks();
+  }
+
+  @override
+  void dispose() {
+    _saveProgress();
+    super.dispose();
   }
 
   void _updateBookStatus() async {
@@ -66,35 +74,17 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _saveProgress();
-    super.dispose();
-  }
-
   Future<void> _saveProgress() async {
     try {
       final page = _pdfController.pageNumber;
       final totalPages = _pdfController.pageCount ?? 1;
       if (page != null && page > 0) {
-        // Сохраняем прогресс
         await _controller.saveProgress(page - 1, _isBookmarked);
 
-        // Проверяем, дочитан ли том до конца
-        // Если страница >= totalPages - 1, считаем том прочитанным
-        final isFinished =
-            page >= totalPages - 1; // -1 потому что последняя страница
+        final isFinished = page >= totalPages - 1;
         if (isFinished) {
           await _controller.markVolumeAsRead();
-          Get.snackbar(
-            '🎉 Том прочитан!',
-            'Статус обновлен на "Прочитан"',
-            snackPosition: SnackPosition.BOTTOM,
-            duration: const Duration(seconds: 2),
-          );
-        } else if (page > 1) {
-          // Если читаем не первую страницу, статус "Читается"
-          // Это уже обновляется через saveReadingProgress
+          SnackbarHelper.success('Том прочитан!');
         }
       }
     } catch (e) {
@@ -104,56 +94,32 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   void _addBookmark() async {
     final currentPage = _pdfController.pageNumber ?? 1;
-
     if (_bookmarks.containsKey(currentPage)) {
-      _showSnackbar('Закладка уже есть на этой странице');
+      SnackbarHelper.info('Закладка уже есть на этой странице');
       return;
     }
-
     setState(() {
       _bookmarks[currentPage] = 'Страница $currentPage';
     });
-
     await _controller.saveBookmark(currentPage);
-    _showSnackbar('📌 Закладка добавлена на стр. $currentPage');
+    SnackbarHelper.success('Закладка добавлена на стр. $currentPage');
   }
 
   void _removeBookmark(int page) async {
-    setState(() {
-      _bookmarks.remove(page);
-    });
-    if (_bookmarks.isEmpty) {
-      await _controller.saveBookmark(-1);
-    }
-    _showSnackbar('Закладка удалена');
-  }
-
-  void _showSnackbar(String message) {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-        width: 300,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-        duration: const Duration(seconds: 1),
-      ),
-    );
+    setState(() => _bookmarks.remove(page));
+    if (_bookmarks.isEmpty) await _controller.saveBookmark(-1);
+    SnackbarHelper.info('Закладка удалена');
   }
 
   void _showBookmarksDialog() {
     if (_bookmarks.isEmpty) {
-      _showSnackbar('Нет сохраненных закладок');
+      SnackbarHelper.info('Нет сохраненных закладок');
       return;
     }
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('📌 Закладки'),
+        title: const Text('Закладки'),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView.builder(
@@ -183,9 +149,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Закрыть'),
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Закрыть')),
         ],
       ),
     );
@@ -193,9 +158,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   void _goToPage() async {
     final totalPages = _pdfController.pageCount ?? 1;
-
-    final TextEditingController textController = TextEditingController();
-
+    final textController = TextEditingController();
     final pageNumber = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
@@ -209,23 +172,21 @@ class _ReaderScreenState extends State<ReaderScreen> {
           ),
           onSubmitted: (value) {
             final page = int.tryParse(value);
-            if (page != null && page >= 1 && page <= totalPages) {
+            if (page != null && page >= 1 && page <= totalPages)
               Navigator.pop(context, page);
-            }
           },
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Отмена'),
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Отмена')),
           ElevatedButton(
             onPressed: () {
               final page = int.tryParse(textController.text);
               if (page != null && page >= 1 && page <= totalPages) {
                 Navigator.pop(context, page);
               } else {
-                _showSnackbar('Введите номер страницы (1-$totalPages)');
+                SnackbarHelper.info('Введите номер страницы (1-$totalPages)');
               }
             },
             child: const Text('Перейти'),
@@ -233,20 +194,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
         ],
       ),
     );
-
     if (pageNumber != null) {
       try {
         _pdfController.jumpToPage(pageNumber);
       } catch (e) {
-        _showSnackbar('Не удалось перейти на страницу $pageNumber');
+        SnackbarHelper.error('Не удалось перейти на страницу $pageNumber');
       }
     }
-  }
-
-  void _toggleReadingMode() {
-    _controller.toggleReadingMode();
-    _isVertical = _controller.readingMode.value == ReadingMode.vertical;
-    setState(() {});
   }
 
   @override
@@ -257,10 +211,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text(
-              'PDF-файл не найден:\n${_volume.filePath}',
-              textAlign: TextAlign.center,
-            ),
+            child: Text('PDF-файл не найден:\n${_volume.filePath}',
+                textAlign: TextAlign.center),
           ),
         ),
       );
@@ -273,59 +225,58 @@ class _ReaderScreenState extends State<ReaderScreen> {
       child: Scaffold(
         backgroundColor: Colors.black,
         appBar: AppBar(
-          backgroundColor: Colors.black.withOpacity(0.9),
+          backgroundColor: Colors.black87,
           foregroundColor: Colors.white,
           title: Row(
             children: [
               Expanded(
-                child: Text(
-                  _volume.title,
-                  style: const TextStyle(fontSize: 14),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                child: Text(_volume.title,
+                    style: const TextStyle(fontSize: 14),
+                    overflow: TextOverflow.ellipsis),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(12),
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(12)),
+                child: Text(
+                  '$_currentPage/$_totalPages',
+                  style: const TextStyle(fontSize: 12),
                 ),
-                child: Obx(() => Text(
-                      '${_controller.currentPage.value}/${_totalPages}',
-                      style: const TextStyle(fontSize: 12),
-                    )),
               ),
             ],
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.bookmarks),
-              onPressed: _showBookmarksDialog,
-              tooltip: 'Закладки (${_bookmarks.length})',
-            ),
+                icon: const Icon(Icons.zoom_out),
+                onPressed: () {
+                  setState(() {
+                    _pdfController.zoomLevel =
+                        (_pdfController.zoomLevel - 0.25).clamp(0.5, 5.0);
+                  });
+                },
+                tooltip: 'Уменьшить'),
             IconButton(
-              icon: const Icon(Icons.bookmark_add),
-              onPressed: _addBookmark,
-              tooltip: 'Добавить закладку',
-            ),
+                icon: const Icon(Icons.zoom_in),
+                onPressed: () {
+                  setState(() {
+                    _pdfController.zoomLevel =
+                        (_pdfController.zoomLevel + 0.25).clamp(0.5, 5.0);
+                  });
+                },
+                tooltip: 'Увеличить'),
             IconButton(
-              icon: const Icon(Icons.numbers),
-              onPressed: _goToPage,
-              tooltip: 'Перейти на страницу',
-            ),
-            Obx(
-              () => Tooltip(
-                message: _controller.readingMode.value.label,
-                child: IconButton(
-                  icon: Icon(
-                    _controller.readingMode.value == ReadingMode.vertical
-                        ? Icons.swap_vert
-                        : Icons.swap_horiz,
-                  ),
-                  onPressed: _toggleReadingMode,
-                ),
-              ),
-            ),
+                icon: const Icon(Icons.bookmarks),
+                onPressed: _showBookmarksDialog,
+                tooltip: 'Закладки (${_bookmarks.length})'),
+            IconButton(
+                icon: const Icon(Icons.bookmark_add),
+                onPressed: _addBookmark,
+                tooltip: 'Добавить закладку'),
+            IconButton(
+                icon: const Icon(Icons.numbers),
+                onPressed: _goToPage,
+                tooltip: 'Перейти на страницу'),
             if (!kIsWeb)
               IconButton(
                 tooltip: 'Открыть во внешней программе',
@@ -334,7 +285,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
               ),
           ],
         ),
-        body: _buildPdfViewer(),
+        body: GestureDetector(
+          onScaleStart: (details) {
+            _currentZoom = _pdfController.zoomLevel;
+          },
+          onScaleUpdate: (details) {
+            if (details.scale != 1.0) {
+              setState(() {
+                _currentZoom = (_currentZoom * details.scale).clamp(0.5, 5.0);
+                _pdfController.zoomLevel = _currentZoom;
+              });
+            }
+          },
+          child: _buildPdfViewer(),
+        ),
       ),
     );
   }
@@ -345,16 +309,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.picture_as_pdf,
-              size: 64,
-              color: Colors.red,
-            ),
+            const Icon(Icons.picture_as_pdf, size: 64, color: Colors.red),
             const SizedBox(height: 16),
-            Text(
-              'PDF: ${_volume.title}',
-              style: const TextStyle(color: Colors.white, fontSize: 18),
-            ),
+            Text('PDF: ${_volume.title}',
+                style: const TextStyle(color: Colors.white, fontSize: 18)),
             const SizedBox(height: 16),
             const Text(
               'Для просмотра PDF в веб-версии,\nпожалуйста, используйте десктопное приложение.',
@@ -370,8 +328,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
       return SfPdfViewer.file(
         File(_volume.filePath),
         controller: _pdfController,
+        enableDoubleTapZooming: true,
+        maxZoomLevel: 5.0,
         onDocumentLoaded: (details) {
-          _totalPages = _pdfController.pageCount ?? 1;
+          setState(() {
+            _isLoading = false;
+            _totalPages = _pdfController.pageCount ?? 1;
+          });
           Future.delayed(const Duration(milliseconds: 300), () {
             try {
               _pdfController.jumpToPage(_initialPage);
@@ -382,8 +345,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
         },
         onPageChanged: (details) {
           if (details.newPageNumber != null && details.newPageNumber! > 0) {
-            _controller.currentPage.value = details.newPageNumber!;
-            _totalPages = _pdfController.pageCount ?? 1;
+            setState(() {
+              _currentPage = details.newPageNumber!;
+              _totalPages = _pdfController.pageCount ?? 1;
+            });
           }
         },
       );
@@ -392,22 +357,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.error_outline,
-              size: 48,
-              color: Colors.red,
-            ),
+            const Icon(Icons.error_outline, size: 48, color: Colors.red),
             const SizedBox(height: 16),
-            Text(
-              'Ошибка загрузки PDF',
-              style: const TextStyle(color: Colors.white, fontSize: 18),
-            ),
+            const Text('Ошибка загрузки PDF',
+                style: TextStyle(color: Colors.white, fontSize: 18)),
             const SizedBox(height: 8),
-            Text(
-              e.toString(),
-              style: const TextStyle(color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
+            Text(e.toString(),
+                style: const TextStyle(color: Colors.grey),
+                textAlign: TextAlign.center),
           ],
         ),
       );
@@ -420,10 +377,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri);
       } else {
-        _showSnackbar('Не удалось открыть PDF');
+        SnackbarHelper.error('Не удалось открыть PDF');
       }
     } catch (e) {
-      _showSnackbar('Не удалось открыть PDF: $e');
+      SnackbarHelper.error('Не удалось открыть PDF: $e');
     }
   }
 }

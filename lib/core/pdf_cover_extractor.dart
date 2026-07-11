@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:path/path.dart' as path;
 import 'package:pdfx/pdfx.dart';
+import 'snackbar_helper.dart';
 
 class PdfCoverExtractor {
   /// Извлекает первую страницу PDF и сохраняет как JPEG обложку.
@@ -17,7 +18,7 @@ class PdfCoverExtractor {
       final msg = 'PDF файл не существует: $pdfPath';
       print(msg);
       if (showErrors) {
-        Get.snackbar('Ошибка', msg, snackPosition: SnackPosition.BOTTOM);
+        SnackbarHelper.error(msg);
       }
       return null;
     }
@@ -76,8 +77,7 @@ class PdfCoverExtractor {
       final msg = 'Ошибка: $e\n$stack';
       print(msg);
       if (showErrors) {
-        Get.snackbar('Ошибка', 'Не удалось извлечь обложку: $e',
-            snackPosition: SnackPosition.BOTTOM);
+        SnackbarHelper.error('Не удалось извлечь обложку: $e');
       }
       return null;
     }
