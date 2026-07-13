@@ -28,7 +28,10 @@ class LibraryController extends GetxController {
   void loadBooks() {
     isLoading.value = true;
     try {
-      books.value = _repository.getAllBooks();
+      final allBooks = _repository.getAllBooks();
+      // Сортируем по дате создания (новые сверху)
+      allBooks.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      books.value = allBooks;
       filterBooks();
     } finally {
       isLoading.value = false;

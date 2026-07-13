@@ -8,7 +8,7 @@ class AppTheme {
     scaffoldBackgroundColor: Colors.grey[100],
     appBarTheme: const AppBarTheme(
       backgroundColor: Colors.white,
-      foregroundColor: Colors.black,
+      foregroundColor: Colors.black87,
       elevation: 0,
     ),
     cardTheme: const CardThemeData(
@@ -26,12 +26,12 @@ class AppTheme {
     useMaterial3: true,
     scaffoldBackgroundColor: Colors.grey[900],
     appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.black,
+      backgroundColor: Color(0xFF1E1E1E),
       foregroundColor: Colors.white,
       elevation: 0,
     ),
     cardTheme: const CardThemeData(
-      color: Colors.grey,
+      color: Color(0xFF2D2D2D),
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(12)),
