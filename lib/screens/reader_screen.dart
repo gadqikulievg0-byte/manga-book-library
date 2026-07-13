@@ -243,9 +243,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
         if (didPop) _saveProgress();
       },
       child: Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.grey[900],
         appBar: AppBar(
-          backgroundColor: Colors.black87,
+          backgroundColor: Colors.grey[850],
           foregroundColor: Colors.white,
           title: Row(
             children: [

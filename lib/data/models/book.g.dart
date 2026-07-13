@@ -24,13 +24,14 @@ class BookAdapter extends TypeAdapter<Book> {
       volumes: (fields[4] as List?)?.cast<Volume>(),
       categories: (fields[5] as List?)?.cast<String>(),
       status: fields[6] as BookStatus,
+      createdAt: fields[7] as DateTime?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Book obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -44,7 +45,9 @@ class BookAdapter extends TypeAdapter<Book> {
       ..writeByte(5)
       ..write(obj.categories)
       ..writeByte(6)
-      ..write(obj.status);
+      ..write(obj.status)
+      ..writeByte(7)
+      ..write(obj.createdAt);
   }
 
   @override

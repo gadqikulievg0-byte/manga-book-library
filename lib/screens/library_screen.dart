@@ -10,7 +10,6 @@ import '../controllers/background_controller.dart';
 import '../data/models/book.dart';
 import '../widgets/book_card.dart';
 import '../controllers/settings_controller.dart';
-import '../widgets/search_field.dart';
 
 enum GridSize { small, medium, large }
 
@@ -26,11 +25,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
   late final LibraryController _controller;
   bool _isSelectionMode = false;
   final Set<String> _selectedBookIds = {};
+  bool _isSearchMode = false;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _controller = Get.find<LibraryController>();
+    _searchController.text = _controller.searchQuery.value;
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _importLibrary() async {
@@ -97,6 +105,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Widget _buildSettingsPanel() {
     final bgController = Get.find<BackgroundController>();
+    final settingsController = Get.find<SettingsController>();
     return StatefulBuilder(
       builder: (context, setLocalState) => Column(
         mainAxisSize: MainAxisSize.min,
@@ -120,6 +129,24 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                   color: Colors.white)),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Text('Тема:', style: TextStyle(color: Colors.white70)),
+              const SizedBox(width: 8),
+              Switch(
+                value: settingsController.isDarkMode.value,
+                onChanged: (_) {
+                  settingsController.toggleTheme();
+                  setLocalState(() {});
+                },
+              ),
+              Obx(() => Text(
+                    settingsController.isDarkMode.value ? 'Темная' : 'Светлая',
+                    style: const TextStyle(color: Colors.white70),
+                  )),
+            ],
+          ),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -473,65 +500,100 @@ class _LibraryScreenState extends State<LibraryScreen> {
         _buildBackground(),
         Scaffold(
           backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            title: _isSelectionMode
-                ? Text('Выбрано: ${_selectedBookIds.length}')
-                : const Text('Chitalka'),
-            centerTitle: false,
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-            actions: [
-              if (_isSelectionMode) ...[
-                IconButton(
-                    icon: const Icon(Icons.select_all),
-                    onPressed: _toggleSelectAll,
-                    tooltip: 'Выбрать все'),
-                IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: _selectedBookIds.isEmpty
-                        ? null
-                        : _confirmAndDeleteSelected,
-                    tooltip: 'Удалить выбранные'),
-                IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: _exitSelectionMode,
-                    tooltip: 'Отменить'),
-              ] else ...[
-                IconButton(
-                    icon: const Icon(Icons.checklist),
-                    onPressed: () => setState(() => _isSelectionMode = true),
-                    tooltip: 'Выделить книги'),
-                IconButton(
-                    icon: const Icon(Icons.filter_list),
-                    onPressed: _openFilters,
-                    tooltip: 'Фильтры'),
-                IconButton(
-                    icon: const Icon(Icons.folder_open),
-                    onPressed: _importLibrary,
-                    tooltip: 'Импортировать'),
-                IconButton(
-                    icon: const Icon(Icons.settings),
-                    onPressed: _openSettings,
-                    tooltip: 'Настройки'),
-                IconButton(
-                    icon: const Icon(Icons.refresh),
-                    onPressed: _controller.loadBooks),
-              ],
-            ],
-          ),
+          appBar: _isSearchMode
+              ? AppBar(
+                  title: TextField(
+                    controller: _searchController,
+                    autofocus: true,
+                    style: TextStyle(
+                      color: Theme.of(context).appBarTheme.foregroundColor,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Поиск...',
+                      hintStyle: TextStyle(
+                        color: Theme.of(context)
+                            .appBarTheme
+                            .foregroundColor
+                            ?.withOpacity(0.5),
+                      ),
+                      border: InputBorder.none,
+                    ),
+                    onChanged: (value) {
+                      _controller.setSearchQuery(value);
+                    },
+                  ),
+                  actions: [
+                    if (_searchController.text.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          _controller.setSearchQuery('');
+                        },
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () {
+                        setState(() {
+                          _isSearchMode = false;
+                          _searchController.clear();
+                        });
+                        _controller.setSearchQuery('');
+                      },
+                    ),
+                  ],
+                )
+              : AppBar(
+                  title: _isSelectionMode
+                      ? Text('Выбрано: ${_selectedBookIds.length}')
+                      : const Text('Chitalka'),
+                  centerTitle: false,
+                  actions: [
+                    if (_isSelectionMode) ...[
+                      IconButton(
+                          icon: const Icon(Icons.select_all),
+                          onPressed: _toggleSelectAll,
+                          tooltip: 'Выбрать все'),
+                      IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: _selectedBookIds.isEmpty
+                              ? null
+                              : _confirmAndDeleteSelected,
+                          tooltip: 'Удалить выбранные'),
+                      IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: _exitSelectionMode,
+                          tooltip: 'Отменить'),
+                    ] else ...[
+                      IconButton(
+                          icon: const Icon(Icons.search),
+                          onPressed: () => setState(() => _isSearchMode = true),
+                          tooltip: 'Поиск'),
+                      IconButton(
+                          icon: const Icon(Icons.checklist),
+                          onPressed: () =>
+                              setState(() => _isSelectionMode = true),
+                          tooltip: 'Выделить книги'),
+                      IconButton(
+                          icon: const Icon(Icons.filter_list),
+                          onPressed: _openFilters,
+                          tooltip: 'Фильтры'),
+                      IconButton(
+                          icon: const Icon(Icons.folder_open),
+                          onPressed: _importLibrary,
+                          tooltip: 'Импортировать'),
+                      IconButton(
+                          icon: const Icon(Icons.settings),
+                          onPressed: _openSettings,
+                          tooltip: 'Настройки'),
+                      IconButton(
+                          icon: const Icon(Icons.refresh),
+                          onPressed: _controller.loadBooks),
+                    ],
+                  ],
+                ),
           body: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: SearchField(
-                  controller: TextEditingController()
-                    ..text = _controller.searchQuery.value,
-                  hintText: 'Поиск...',
-                  onChanged: (value) {
-                    if (value != null) _controller.setSearchQuery(value);
-                  },
-                ),
-              ),
               Expanded(
                 child: Obx(() {
                   if (_controller.isLoading.value)

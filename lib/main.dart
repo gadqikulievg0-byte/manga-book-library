@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:get/get.dart';
 import 'core/routes.dart';
@@ -33,7 +32,15 @@ void main() async {
   Get.put(BookController(), permanent: true);
   Get.put(ReaderController(), permanent: true);
 
-  runApp(const MyApp());
+  runApp(
+    GetBuilder<SettingsController>(
+      init: Get.find<SettingsController>(),
+      builder: (controller) {
+        controller.applyTheme();
+        return const MyApp();
+      },
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -41,15 +48,20 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GetMaterialApp(
-      title: 'Manga Library Pro',
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.dark,
-      initialRoute: Routes.library,
-      getPages: Routes.routes,
-      debugShowCheckedModeBanner: false,
-      defaultTransition: Transition.fadeIn,
+    return GetBuilder<SettingsController>(
+      builder: (controller) {
+        return GetMaterialApp(
+          title: 'Manga Library Pro',
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode:
+              controller.isDarkMode.value ? ThemeMode.dark : ThemeMode.light,
+          initialRoute: Routes.library,
+          getPages: Routes.routes,
+          debugShowCheckedModeBanner: false,
+          defaultTransition: Transition.fadeIn,
+        );
+      },
     );
   }
 }

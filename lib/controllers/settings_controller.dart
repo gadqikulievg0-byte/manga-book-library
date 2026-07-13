@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -11,6 +12,7 @@ class SettingsController extends GetxController {
   late Box _box;
 
   final libraryPath = ''.obs;
+  final isDarkMode = true.obs;
 
   @override
   void onInit() {
@@ -26,6 +28,25 @@ class SettingsController extends GetxController {
     } else {
       libraryPath.value = path.join(Directory.current.path, 'library');
     }
+
+    // Загружаем настройку темы
+    final themeMode = _box.get('theme_mode', defaultValue: 'dark');
+    isDarkMode.value = themeMode != 'light';
+  }
+
+  void applyTheme() {
+    _applyThemeMode();
+  }
+
+  void toggleTheme() {
+    isDarkMode.value = !isDarkMode.value;
+    _box.put('theme_mode', isDarkMode.value ? 'dark' : 'light');
+    _applyThemeMode();
+    update();
+  }
+
+  void _applyThemeMode() {
+    Get.changeThemeMode(isDarkMode.value ? ThemeMode.dark : ThemeMode.light);
   }
 
   Future<void> changeLibraryPath() async {

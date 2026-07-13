@@ -74,6 +74,9 @@ class Book extends HiveObject {
   @HiveField(6)
   BookStatus status;
 
+  @HiveField(7)
+  DateTime createdAt;
+
   Book({
     String? id,
     required this.title,
@@ -82,9 +85,11 @@ class Book extends HiveObject {
     List<Volume>? volumes,
     List<String>? categories,
     this.status = BookStatus.newBook, // Значение по умолчанию
+    DateTime? createdAt,
   })  : id = id ?? const Uuid().v4(),
         volumes = volumes ?? [],
-        categories = categories ?? [];
+        categories = categories ?? [],
+        createdAt = createdAt ?? DateTime.now();
 
   int get volumeCount => volumes.length;
 
@@ -118,6 +123,7 @@ class Book extends HiveObject {
     List<Volume>? volumes,
     List<String>? categories,
     BookStatus? status,
+    DateTime? createdAt,
   }) {
     return Book(
       id: id,
@@ -127,6 +133,7 @@ class Book extends HiveObject {
       volumes: volumes ?? this.volumes,
       categories: categories ?? this.categories,
       status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 }
